@@ -1,0 +1,18 @@
+{
+  "name": "PegelPlan – Wochenend-Simulator",
+  "short_name": "PegelPlan",
+  "description": "Pharmakokinetischer Blutalkohol- und Kater-Simulator für unterwegs und zur Planung.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
