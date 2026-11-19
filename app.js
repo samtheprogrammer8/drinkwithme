@@ -445,7 +445,107 @@ function renderHistory() {
   });
 }
 
-// --- Simulation & Charts ---
+// --- Simulation & Charts (inkl. Touch-Inspektor) ---
+let latestSimRes = null;
+let inspectorIndex = null;
+
+function updateInspectorReadout(idx) {
+  const bar = document.getElementById("inspector-bar");
+  const line = document.getElementById("touch-guide-line");
+
+  if (!latestSimRes || idx === null || idx < 0 || idx >= latestSimRes.labels.length) {
+    bar.classList.add("hidden");
+    if (line) line.classList.add("hidden");
+    return;
+  }
+
+  bar.classList.remove("hidden");
+  document.getElementById("insp-time").textContent = latestSimRes.labels[idx];
+  document.getElementById("insp-bac").textContent = `${latestSimRes.bacSeries[idx].toFixed(2)} ‰`;
+  document.getElementById("insp-hangover").textContent = `Kater ${latestSimRes.hangoverSeries[idx].toFixed(1)}`;
+  document.getElementById("insp-hydration").textContent = `Hydr. ${latestSimRes.hydrationSeries[idx].toFixed(1)}`;
+
+  if (bacChart && line) {
+    const meta = bacChart.getDatasetMeta(0);
+    const pt = meta?.data?.[idx];
+    const wrap = document.getElementById("chart-wrap");
+    if (pt && wrap) {
+      const canvasRect = bacChart.canvas.getBoundingClientRect();
+      const wrapRect = wrap.getBoundingClientRect();
+      const xPos = (canvasRect.left - wrapRect.left) + pt.x;
+      line.style.left = `${xPos}px`;
+      line.classList.remove("hidden");
+    }
+  }
+}
+
+function setInspectorIndex(idx) {
+  if (!latestSimRes || latestSimRes.labels.length === 0) return;
+  const clamped = Math.max(0, Math.min(latestSimRes.labels.length - 1, idx));
+  inspectorIndex = clamped;
+
+  if (bacChart && scoreChart) {
+    const activeBac = [{ datasetIndex: 0, index: clamped }];
+    const activeScore = [
+      { datasetIndex: 0, index: clamped },
+      { datasetIndex: 1, index: clamped },
+    ];
+    bacChart.setActiveElements(activeBac);
+    scoreChart.setActiveElements(activeScore);
+    bacChart.tooltip.setActiveElements(activeBac, { x: 0, y: 0 });
+    scoreChart.tooltip.setActiveElements(activeScore, { x: 0, y: 0 });
+    bacChart.update("none");
+    scoreChart.update("none");
+  }
+
+  updateInspectorReadout(clamped);
+}
+
+function attachChartTouchInspector() {
+  const wrap = document.getElementById("chart-wrap");
+  if (!wrap || wrap.dataset.inspectorBound === "true") return;
+  wrap.dataset.inspectorBound = "true";
+
+  const guide = document.createElement("div");
+  guide.id = "touch-guide-line";
+  guide.className = "touch-guide-line hidden";
+  wrap.appendChild(guide);
+
+  const pickIndexFromClientX = (clientX) => {
+    if (!bacChart || !latestSimRes || latestSimRes.labels.length === 0) return;
+    const area = bacChart.chartArea;
+    const rect = bacChart.canvas.getBoundingClientRect();
+    if (!area) return;
+
+    const relX = clientX - rect.left;
+    const clampedX = Math.max(area.left, Math.min(area.right, relX));
+    const ratio = (clampedX - area.left) / Math.max(1, area.right - area.left);
+    const idx = Math.round(ratio * (latestSimRes.labels.length - 1));
+    setInspectorIndex(idx);
+  };
+
+  wrap.addEventListener("pointerdown", (e) => {
+    wrap.setPointerCapture(e.pointerId);
+    pickIndexFromClientX(e.clientX);
+  });
+
+  wrap.addEventListener("pointermove", (e) => {
+    if (e.pointerType === "mouse" && e.buttons === 0 && inspectorIndex === null) return;
+    if (wrap.hasPointerCapture(e.pointerId) || e.pointerType === "touch") {
+      pickIndexFromClientX(e.clientX);
+    }
+  });
+
+  const releasePointer = (e) => {
+    if (wrap.hasPointerCapture(e.pointerId)) {
+      wrap.releasePointerCapture(e.pointerId);
+    }
+  };
+
+  wrap.addEventListener("pointerup", releasePointer);
+  wrap.addEventListener("pointercancel", releasePointer);
+}
+
 function updateSimulation() {
   const profile = getActiveProfile();
   const range = state.range;
@@ -454,6 +554,7 @@ function updateSimulation() {
     `${formatTotalHour(range.startDay * 24 + range.startHour)} – ${formatTotalHour(range.endDay * 24 + range.endHour)}`;
 
   const res = runSimulation({ profile, range, events: state.events });
+  latestSimRes = res;
 
   document.getElementById("tbw-val").textContent = `${res.tbw.toFixed(1)} L`;
   document.getElementById("elim-val").textContent = `${res.elimRate.toFixed(2)} ‰/h`;
@@ -474,6 +575,7 @@ function updateSimulation() {
   if (isBacDanger || isCaffDanger) {
     chartWrap.classList.add("hidden");
     dangerBox.classList.remove("hidden");
+    updateInspectorReadout(null);
 
     if (isBacDanger) {
       dangerText.textContent =
@@ -486,6 +588,10 @@ function updateSimulation() {
     chartWrap.classList.remove("hidden");
     dangerBox.classList.add("hidden");
     renderChart(res);
+    attachChartTouchInspector();
+    if (inspectorIndex !== null) {
+      setInspectorIndex(inspectorIndex);
+    }
   }
 
   // Mood, Coach & Haupttreiber
@@ -570,6 +676,7 @@ function renderChart(res) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      events: [],
       interaction: { mode: "index", intersect: false },
       plugins: {
         legend: { labels: { color: "#cbd5e1", boxWidth: 10, font: { size: 11 } } },
@@ -620,6 +727,7 @@ function renderChart(res) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      events: [],
       interaction: { mode: "index", intersect: false },
       plugins: {
         legend: { labels: { color: "#cbd5e1", boxWidth: 10, font: { size: 11 } } },

@@ -466,3 +466,40 @@ input[type="range"] { width: 100%; accent-color: var(--blue); }
   font-size: 0.85rem;
   cursor: pointer;
 }
+/* Touch-Inspektor über beiden Diagrammen */
+.inspector-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.55rem;
+  font-size: 0.73rem;
+  font-weight: 700;
+}
+
+.insp-time { color: var(--text); }
+.insp-bac { color: var(--blue); }
+.insp-hangover { color: var(--pink); }
+.insp-hydration { color: var(--teal); }
+
+.chart-stack {
+  position: relative;
+  touch-action: none; /* Verhindert Seitenscroll beim Verschieben des Strichs */
+  user-select: none;
+}
+
+.touch-guide-line {
+  position: absolute;
+  top: 0;
+  bottom: 18px; /* Oberhalb der X-Achsen-Beschriftung */
+  width: 1.5px;
+  background: rgba(248, 250, 252, 0.75);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.45);
+  pointer-events: none;
+  z-index: 5;
+}
