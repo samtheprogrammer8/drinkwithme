@@ -32,28 +32,26 @@ function runSimulation({ profile, range, events }) {
   const dt = 0.1; // 6-Minuten-Schritte
   const startT = range.startDay * 24 + range.startHour;
   let rawEndT = range.endDay * 24 + range.endHour;
-  if (rawEndT <= startT) rawEndT += 168; // Ermöglicht Zeiträume über So -> Mo hinweg
+  if (rawEndT <= startT) rawEndT += 168;
   const endT = Math.max(startT + 6, rawEndT);
 
   const tbw = calcTBW(profile);
   const tol = TOLERANCE_PARAMS[profile.tolerance || "normal"];
-  const Km = 0.12;          // Michaelis-Menten-Konstante für Ethanol (‰)
-  const KiMethanol = 0.08;  // Kompetitive Hemmung von Methanol durch Ethanol (‰)
+  const Km = 0.12; // Michaelis-Menten-Konstante für Ethanol (‰)
 
   // Zustandsvariablen (Stocks)
-  let stomachAlc = 0;        // Ethanol im Magen (g)
-  let foodLoad = 0;          // Magenfüllung (0 = nüchtern, 1 = voll)
-  let carbBoost = 0;         // Kohlensäure-Effekt im Magen (0 bis 1)
-  let bac = 0;               // Blutalkohol (‰)
+  let stomachAlc = 0;     // Ethanol im Magen (g)
+  let foodLoad = 0;       // Magenfüllung (0 = nüchtern, 1 = voll)
+  let carbBoost = 0;      // Kohlensäure-Effekt im Magen (0 bis 1)
+  let bac = 0;            // Blutalkohol (‰)
 
-  let methanolLoad = 0;      // Kongenere / Methanol (wartet auf Ethanol-Abbau)
-  let toxicLoad = 0;         // Entzündungs- & Methanol-Abbauprodukte
-  let fluidDeficitMl = 0;    // Flüssigkeitsdefizit in ml (0 = optimal)
-  let electroReserve = 0;    // Elektrolyte-Puffer (0 bis 1)
-  let bloodGlucose = 90;     // Blutzucker-Index (90 = normal, <70 = Hypoglykämie-Stress)
-  let caffeineMg = 0;        // Koffein im Körper (mg, Halbwertszeit ~5h)
-  let nicotineLoad = 0;      // Nikotin / oxidativer Stress (0 bis 10)
-  let sleepDebtH = 0;        // Schlafdefizit (Stunden)
+  let metabolicLoad = 0;  // Stoffwechsel- & Abbau-Belastung durch Ethanol
+  let fluidDeficitMl = 0; // Flüssigkeitsdefizit in ml (0 = optimal)
+  let electroReserve = 0; // Elektrolyte-Puffer (0 bis 1)
+  let bloodGlucose = 90;  // Blutzucker-Index (90 = normal, <70 = Hypoglykämie-Stress)
+  let caffeineMg = 0;     // Koffein im Körper (mg, Halbwertszeit ~5h)
+  let nicotineLoad = 0;   // Nikotin-Belastung (0 bis 10)
+  let sleepDebtH = 0;     // Schlafdefizit (Stunden)
 
   const labels = [];
   const bacSeries = [];
@@ -65,7 +63,7 @@ function runSimulation({ profile, range, events }) {
   let maxFluidDeficitMl = 0;
   let maxCaffeineMg = 0;
   let minGlucose = 90;
-  let peakDrivers = { fluid: 0, sleep: 0, toxin: 0, glucose: 0 };
+  let peakDrivers = { fluid: 0, sleep: 0, alcohol: 0, glucose: 0 };
   let lastDrinkingTime = -1;
   let soberTime = null;
   let wasSleeping = false;
@@ -76,7 +74,7 @@ function runSimulation({ profile, range, events }) {
     const tWeek = ((tClean % 168) + 168) % 168;
     const hourOfDay = tWeek % 24;
 
-    // 1. Geplante Events verarbeiten (inkl. 30-Minuten-Trinkdauer für Bier, Wein & Longdrink)
+    // 1. Geplante Events verarbeiten
     for (const ev of events) {
       const evT = ev.day * 24 + ev.hour;
       const elapsed = (tWeek - evT + 168) % 168;
@@ -94,9 +92,6 @@ function runSimulation({ profile, range, events }) {
           lastDrinkingTime = tClean;
 
           if (ev.carbonated) carbBoost = Math.min(1.0, carbBoost + 0.85 * frac);
-
-          const congenerFactor = ev.dark ? 1.55 : 0.65;
-          methanolLoad += (gramsStep / tbw) * 0.55 * congenerFactor;
 
           const matchDl = (ev.label || "").match(/([\d.]+)\s*dl/i);
           const drinkMl = matchDl ? parseFloat(matchDl[1]) * 100 : 150;
@@ -121,7 +116,7 @@ function runSimulation({ profile, range, events }) {
       }
     }
 
-    // Aktive Zustände: Schlaf & Tanzen / Aktivität
+    // Aktive Zustände: Schlaf & Tanzen
     const isSleeping = events.some((ev) => {
       if (ev.type !== "sleep") return false;
       const sStart = ev.day * 24 + ev.hour;
@@ -138,7 +133,7 @@ function runSimulation({ profile, range, events }) {
       return elapsed >= 0 && elapsed < dur - 0.0001;
     });
 
-    // 2. Magenentleerung, Kohlensäure, Tanz-Durchblutung & First-Pass-Effekt
+    // 2. Magenentleerung, Kohlensäure & Tanz-Durchblutung
     const baseK = 2.4 - 1.5 * foodLoad;
     const danceBoost = isDancing && !isSleeping ? 1.12 : 1.0;
     const kAbs = baseK * (1 + 0.35 * carbBoost) * danceBoost;
@@ -157,22 +152,23 @@ function runSimulation({ profile, range, events }) {
     const actualElim = Math.min(bac + bacInflow, elimRate * dt);
     bac = Math.max(0, bac + bacInflow - actualElim);
 
-    // 4. Methanol-Spätphase (kompetitive Hemmung) & Nikotin-Synergie
-    const methanolMetabolized = methanolLoad * 0.32 * (KiMethanol / (KiMethanol + bac)) * dt;
-    methanolLoad = Math.max(0, methanolLoad - methanolMetabolized);
-    const nicotineSynergy = nicotineLoad * Math.min(1.2, bac) * 0.08 * dt;
-    toxicLoad = Math.max(0, toxicLoad + actualElim * 0.75 + methanolMetabolized * 2.2 + nicotineSynergy - toxicLoad * 0.11 * dt);
+    // 4. Alkohol-Abbau-Belastung & Nikotin-Einfluss
+    const nicotineExtra = nicotineLoad * Math.min(1.2, bac) * 0.05 * dt;
+    metabolicLoad = Math.max(
+      0,
+      metabolicLoad + actualElim * 0.85 + nicotineExtra - metabolicLoad * 0.12 * dt
+    );
 
-    // 5. Koffein-Abbau (Halbwertszeit ~5h) & Nikotin (Raucher-Profil: ~2 Zig./h beim Trinken)
+    // 5. Koffein & Raucher-Profil
     caffeineMg = Math.max(0, caffeineMg * Math.exp(-0.1386 * dt));
     const isSmokingNow = Boolean(profile.smoker) && !isSleeping &&
       (bac > 0.15 || (lastDrinkingTime >= 0 && (tClean - lastDrinkingTime) <= 2.5));
     if (isSmokingNow) {
-      nicotineLoad = Math.min(10, nicotineLoad + 2.2 * dt); // ~1.1 Last pro Zigarette × 2/h
+      nicotineLoad = Math.min(10, nicotineLoad + 2.2 * dt);
     }
     nicotineLoad = Math.max(0, nicotineLoad - 0.18 * nicotineLoad * dt);
 
-    // 6. Blutzucker (Alkohol hemmt Gluconeogenese + Tanzen verbraucht Glukose)
+    // 6. Blutzucker
     const danceGlucoseBurn = isDancing && !isSleeping ? 3.2 * dt : 0;
     if ((bac > 0.12 && foodLoad < 0.2) || danceGlucoseBurn > 0) {
       const alcDrop = (bac > 0.12 && foodLoad < 0.2) ? 4.2 * Math.min(1.5, bac) * dt : 0;
@@ -182,14 +178,14 @@ function runSimulation({ profile, range, events }) {
       bloodGlucose = Math.min(90, bloodGlucose + recoveryRate * dt);
     }
 
-    // 7. Flüssigkeitsbilanz (ADH-Hemmung + Koffein-Diurese + Schweiss beim Tanzen)
+    // 7. Flüssigkeitsbilanz
     const sweatMl = isDancing && !isSleeping ? 280 * dt : 0;
     const diuresisMl = (absorbedGrams * 10.0) + (caffeineMg * 0.1 * dt) + sweatMl;
     const naturalRehyd = !isSleeping && fluidDeficitMl > 0 ? 45 * dt : 0;
     fluidDeficitMl = Math.max(0, Math.min(2500, fluidDeficitMl + diuresisMl - naturalRehyd));
     electroReserve = Math.max(0, electroReserve - (isDancing ? 0.14 : 0.08) * dt);
 
-    // 8. Zirkadianer Rhythmus (Melatonin) & Schlafarchitektur
+    // 8. Zirkadianer Rhythmus & Schlaf
     const baseMelatonin = 0.5 + 0.5 * Math.cos(2 * Math.PI * ((hourOfDay - 2) / 24));
     const alcMelSuppression = (hourOfDay >= 20 || hourOfDay <= 5) ? 0.25 * Math.min(1, bac) : 0;
     const melatonin = Math.max(0, baseMelatonin * (1 - alcMelSuppression));
@@ -208,29 +204,27 @@ function runSimulation({ profile, range, events }) {
       sleepDebtH = Math.min(12, sleepDebtH + 0.14 * dt + danceFatigue);
     }
 
-    // 9. Kater-Index (0–10): Peak nach Ausnüchtern (Maskierung + Methanol-Spätphase)
+    // 9. Kater-Index (0–10)
     const hangoverUnmasking = Math.exp(-1.4 * bac);
-    const hasDrankRecently = Math.min(1, (toxicLoad + methanolLoad) * 2.2);
+    const hasDrankRecently = Math.min(1, metabolicLoad * 2.2);
 
     const fluidScore = (fluidDeficitMl / 1200) * 3.0;
     const sleepScore = (sleepDebtH / 6.0) * 2.1;
-    const toxinScore = toxicLoad * 2.8;
+    const alcoholScore = metabolicLoad * 2.6;
     const glucoseScore = Math.max(0, (75 - bloodGlucose) / 25) * 1.8;
 
     const electroBonus = electroReserve * 0.9;
     const morningCaffRelief = (!isSleeping && bac < 0.15 && caffeineMg >= 25 && caffeineMg <= 180) ? 0.45 : 0;
 
     const rawHangover = hasDrankRecently * hangoverUnmasking * tol.hangoverMult *
-      (toxinScore + fluidScore + sleepScore + glucoseScore - electroBonus - morningCaffRelief);
+      (alcoholScore + fluidScore + sleepScore + glucoseScore - electroBonus - morningCaffRelief);
     const hangover = Math.max(0, Math.min(10, rawHangover));
 
-    // Aufwach-Zustand erfassen
     if (wasSleeping && !isSleeping && lastDrinkingTime >= 0) {
       wakeUp = { time: tClean, bac, hangover };
     }
     wasSleeping = isSleeping;
 
-    // Statistiken & Haupttreiber erfassen
     if (bac > maxBac) maxBac = bac;
     if (fluidDeficitMl > maxFluidDeficitMl) maxFluidDeficitMl = fluidDeficitMl;
     if (bloodGlucose < minGlucose) minGlucose = bloodGlucose;
@@ -238,14 +232,13 @@ function runSimulation({ profile, range, events }) {
 
     if (hangover > maxHangover) {
       maxHangover = hangover;
-      peakDrivers = { fluid: fluidScore, sleep: sleepScore, toxin: toxinScore, glucose: glucoseScore };
+      peakDrivers = { fluid: fluidScore, sleep: sleepScore, alcohol: alcoholScore, glucose: glucoseScore };
     }
 
     if (lastDrinkingTime >= 0 && tClean > lastDrinkingTime + 0.5 && bac < 0.02 && soberTime === null) {
       soberTime = tClean;
     }
 
-    // Volle Stunden fürs Diagramm speichern
     if (Math.abs(tClean - Math.round(tClean)) < 0.001) {
       labels.push(formatTotalHour(Math.round(tClean)));
       bacSeries.push(Number(bac.toFixed(2)));

@@ -1,4 +1,4 @@
-const STORAGE_KEY = "pegelplan_state_v7";
+const STORAGE_KEY = "drinkwithme_state_v7";
 
 function getCurrentWeekTime() {
   const now = new Date();
@@ -624,13 +624,13 @@ function updateSimulation() {
     coachEl.textContent = `Hohe Belastung durch Alkohol, Dehydration & Schlafverlust. Essen vorab, Wasser und Elektrolyte helfen am stärksten.${wakeNote}`;
   }
 
-  const d = res.stats.peakDrivers;
+const d = res.stats.peakDrivers;
   if (h >= 0.5 && !isBacDanger && !isCaffDanger) {
     pillsEl.innerHTML = `
-      <span class="driver-pill ${d.fluid > 1.2 ? "warn" : ""}">💧 Dehydration: ${d.fluid.toFixed(1)}</span>
-      <span class="driver-pill ${d.toxin > 1.5 ? "warn" : ""}">🍷 Kongenere: ${d.toxin.toFixed(1)}</span>
-      <span class="driver-pill ${d.sleep > 1.0 ? "warn" : ""}">😴 Schlaf: ${d.sleep.toFixed(1)}</span>
-      <span class="driver-pill ${d.glucose > 0.6 ? "warn" : ""}">📉 Blutzucker: ${d.glucose.toFixed(1)}</span>
+      <span class="driver-pill ${d.fluid > 1.2 ? "warn" : ""}">💧 Zu wenig Wasser: ${d.fluid.toFixed(1)}</span>
+      <span class="driver-pill ${d.alcohol > 1.5 ? "warn" : ""}">🍺 Alkoholmenge: ${d.alcohol.toFixed(1)}</span>
+      <span class="driver-pill ${d.sleep > 1.0 ? "warn" : ""}">😴 Zu wenig Schlaf: ${d.sleep.toFixed(1)}</span>
+      <span class="driver-pill ${d.glucose > 0.6 ? "warn" : ""}">📉 Tiefes Blutzucker: ${d.glucose.toFixed(1)}</span>
     `;
   } else {
     pillsEl.innerHTML = "";

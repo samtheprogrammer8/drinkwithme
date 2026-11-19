@@ -1,4 +1,4 @@
-const CACHE_NAME = "pegelplan-pwa-v1";
+const CACHE_NAME = "drinkwithme-pwa-v1";
 const ASSETS = [
   "./",
   "./index.html",

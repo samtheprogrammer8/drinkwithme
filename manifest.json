@@ -1,6 +1,6 @@
 {
-  "name": "PegelPlan – Wochenend-Simulator",
-  "short_name": "PegelPlan",
+  "name": "drinkwithme – Wochenend-Simulator",
+  "short_name": "drinkwithme",
   "description": "Pharmakokinetischer Blutalkohol- und Kater-Simulator.",
   "start_url": "./index.html",
   "scope": "./",
