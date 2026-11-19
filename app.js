@@ -604,6 +604,12 @@ function updateSimulation() {
     ? ` Beim Aufwachen (${formatTotalHour(res.stats.wakeUp.time)}) noch ${res.stats.wakeUp.bac.toFixed(2)} ‰ Restalkohol.`
     : "";
 
+const d = res.stats.peakDrivers;
+  const hasCaffeine = (res.stats.maxCaffeineMg || 0) >= 25;
+  const needsWater = (res.stats.maxFluidDeficitMl || 0) >= 250 || d.fluid > 1.0;
+  const needsSleep = d.sleep > 1.0;
+  const needsFood = d.glucose > 0.6;
+
   if (isBacDanger) {
     moodEl.textContent = "🚨 Gefahr";
     coachEl.textContent = "Dieser Plan ist medizinisch extrem gefährlich. Reduziere die Anzahl Drinks oder verteile sie über mehr Stunden.";
@@ -615,7 +621,14 @@ function updateSimulation() {
     coachEl.textContent = `Alles im grünen Bereich – morgen früh bist du topfit.${wakeNote}`;
   } else if (h < 4.0) {
     moodEl.textContent = "😐 Leicht müde";
-    coachEl.textContent = `Spürbare Belastung. Ein bis zwei Gläser Wasser (3 dl) oder weniger spätes Koffein helfen sofort.${wakeNote}`;
+    const tips = [];
+    if (needsWater) tips.push("ein bis zwei Gläser Wasser (3 dl)");
+    if (hasCaffeine) tips.push("weniger spätes Koffein");
+    if (needsFood) tips.push("etwas Essen");
+    if (needsSleep) tips.push("etwas mehr Schlaf");
+    if (tips.length === 0) tips.push("etwas weniger Alkohol oder mehr Zeit dazwischen");
+
+    coachEl.textContent = `Spürbare Belastung. ${tips.join(" sowie ")} helfen hier am ehesten.${wakeNote}`;
   } else if (h < 6.8) {
     moodEl.textContent = "😵‍💫 Kater-Alarm";
     coachEl.textContent = `Ordentlicher Kater programmiert! Achte auf die rot markierten Haupttreiber unten.${wakeNote}`;
@@ -624,13 +637,12 @@ function updateSimulation() {
     coachEl.textContent = `Hohe Belastung durch Alkohol, Dehydration & Schlafverlust. Essen vorab, Wasser und Elektrolyte helfen am stärksten.${wakeNote}`;
   }
 
-const d = res.stats.peakDrivers;
   if (h >= 0.5 && !isBacDanger && !isCaffDanger) {
     pillsEl.innerHTML = `
       <span class="driver-pill ${d.fluid > 1.2 ? "warn" : ""}">💧 Zu wenig Wasser: ${d.fluid.toFixed(1)}</span>
       <span class="driver-pill ${d.alcohol > 1.5 ? "warn" : ""}">🍺 Alkoholmenge: ${d.alcohol.toFixed(1)}</span>
       <span class="driver-pill ${d.sleep > 1.0 ? "warn" : ""}">😴 Zu wenig Schlaf: ${d.sleep.toFixed(1)}</span>
-      <span class="driver-pill ${d.glucose > 0.6 ? "warn" : ""}">📉 Tiefes Blutzucker: ${d.glucose.toFixed(1)}</span>
+      <span class="driver-pill ${d.glucose > 0.6 ? "warn" : ""}">📉 Tiefer Blutzucker: ${d.glucose.toFixed(1)}</span>
     `;
   } else {
     pillsEl.innerHTML = "";
