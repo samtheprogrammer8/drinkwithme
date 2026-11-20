@@ -33,7 +33,7 @@ let liveMode = true;
 const initNow = getCurrentWeekTime();
 let selectedDay = initNow.day;
 let selectedHour = initNow.hour;
-let activePreset = { name: "Bier", icon: "🍺", dur: 0.5, dark: false, carb: true };
+let activePreset = { name: "Bier", icon: "🍺", dur: 0.5, carb: true };
 let selectedSleepDur = 7.5;
 let bacChart = null;
 let scoreChart = null;
@@ -46,7 +46,6 @@ function getActiveProfile() {
   return state.profiles.find((p) => p.id === state.activeProfileId) || state.profiles[0];
 }
 
-// Prüft, ob ein Zeitpunkt im aktuellen Simulations-Zeitraum liegt; falls nicht, passt er ihn im Live-Modus an
 function ensureTimeInRange(day, hour) {
   const startT = state.range.startDay * 24 + state.range.startHour;
   let rawEndT = state.range.endDay * 24 + state.range.endHour;
@@ -284,7 +283,6 @@ document.querySelectorAll("#drink-presets .tile").forEach((tile) => {
       name: tile.dataset.name,
       icon: tile.dataset.icon,
       dur: Number(tile.dataset.dur),
-      dark: tile.dataset.dark === "true",
       carb: tile.dataset.carb === "true",
     };
     dlSlider.value = tile.dataset.dl;
@@ -296,6 +294,68 @@ document.querySelectorAll("#drink-presets .tile").forEach((tile) => {
 dlSlider.addEventListener("input", updateDrinkButton);
 abvSlider.addEventListener("input", updateDrinkButton);
 
+function canAddEvent(newEv) {
+  const sameHourEvents = state.events.filter(
+    (ev) => ev.day === newEv.day && Math.abs(ev.hour - newEv.hour) < 1
+  );
+
+  // 1. Elektrolyte: maximal 1x innerhalb von 24 Stunden
+  if (newEv.type === "electro") {
+    const newT = newEv.day * 24 + newEv.hour;
+    const hasElectroSameDay = state.events.some((ev) => {
+      if (ev.type !== "electro") return false;
+      const evT = ev.day * 24 + ev.hour;
+      const diff = Math.min(Math.abs(newT - evT), 168 - Math.abs(newT - evT));
+      return diff < 20;
+    });
+    if (hasElectroSameDay) {
+      alert("Elektrolyte sind in diesem 24h-Zeitraum schon eingeplant – einmal pro Abend/Tag reicht.");
+      return false;
+    }
+  }
+
+  // 2. Wasser: maximal 6 dl pro Stunde
+  if (newEv.type === "water") {
+    const waterInHour = sameHourEvents
+      .filter((ev) => ev.type === "water")
+      .reduce((sum, ev) => sum + (ev.dl || 3), 0);
+
+    if (waterInHour + (newEv.dl || 3) > 6) {
+      alert("Maximal 6 dl Wasser pro Stunde – verteile mehr Wasser auf spätere Stunden.");
+      return false;
+    }
+  }
+
+  // 3. Koffein: maximal 2 Portionen (~180 mg) pro Stunde
+  if (newEv.type === "caffeine") {
+    const caffCountInHour = sameHourEvents.filter((ev) => ev.type === "caffeine").length;
+    if (caffCountInHour >= 2) {
+      alert("Maximal 2 Koffein-Portionen pro Stunde – sonst wird es kreislaufmässig unrealistisch.");
+      return false;
+    }
+  }
+
+  // 4. Tanzen (1h): maximal 1x pro Stunde (da ein Tanz-Event 1 Stunde dauert)
+  if (newEv.type === "dance") {
+    const danceCountInHour = sameHourEvents.filter((ev) => ev.type === "dance").length;
+    if (danceCountInHour >= 1) {
+      alert("In derselben Stunde ist schon 1h Tanzen eingetragen – wähle für weiteren Tanz die nächste Stunde.");
+      return false;
+    }
+  }
+
+  // 5. Essen: maximal 2x pro Stunde
+  if (newEv.type === "food") {
+    const foodCountInHour = sameHourEvents.filter((ev) => ev.type === "food").length;
+    if (foodCountInHour >= 2) {
+      alert("Maximal 2 Essens-Einträge pro Stunde.");
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function addEvent(ev) {
   if (liveMode) {
     const now = getCurrentWeekTime();
@@ -305,7 +365,16 @@ function addEvent(ev) {
     ensureTimeInRange(selectedDay, selectedHour);
   }
 
-  state.events.push({ id: Date.now() + Math.random(), day: selectedDay, hour: selectedHour, ...ev });
+  const candidateEvent = {
+    id: Date.now() + Math.random(),
+    day: selectedDay,
+    hour: selectedHour,
+    ...ev,
+  };
+
+  if (!canAddEvent(candidateEvent)) return;
+
+  state.events.push(candidateEvent);
   saveState();
   renderEventList();
   updateSimulation();
@@ -315,7 +384,6 @@ document.getElementById("add-drink-btn").addEventListener("click", () => {
   const dl = Number(dlSlider.value);
   const abv = Number(abvSlider.value);
   const carbonated = activePreset.carb;
-  const dark = activePreset.dark;
   const drinkDuration = getDrinkDuration();
 
   addEvent({
@@ -324,17 +392,33 @@ document.getElementById("add-drink-btn").addEventListener("click", () => {
     label: `${activePreset.name} ${dl.toFixed(1)} dl (${abv.toFixed(1)}%)`,
     grams: calcAlcoholGrams(dl, abv),
     carbonated,
-    dark,
     drinkDuration,
   });
 });
 
 // Konter, Tanzen & Schlaf
-document.getElementById("btn-water").addEventListener("click", () => addEvent({ type: "water", icon: "💧", label: "Wasser 3 dl", dl: 3 }));
-document.getElementById("btn-electro").addEventListener("click", () => addEvent({ type: "electro", icon: "⚡", label: "Elektrolyte" }));
-document.getElementById("btn-food").addEventListener("click", () => addEvent({ type: "food", icon: "🍕", label: "Essen" }));
-document.getElementById("btn-dance").addEventListener("click", () => addEvent({ type: "dance", icon: "💃", label: "Tanzen (1h)", duration: 1 }));
-document.getElementById("btn-caffeine").addEventListener("click", () => addEvent({ type: "caffeine", icon: "☕", label: "Koffein (~90mg)", mg: 90 }));
+document.getElementById("btn-water").addEventListener("click", () =>
+  addEvent({ type: "water", icon: "💧", label: "Wasser 3 dl", dl: 3 })
+);
+document.getElementById("btn-electro").addEventListener("click", () =>
+  addEvent({ type: "electro", icon: "⚡", label: "Elektrolyte 3 dl", dl: 3 })
+);
+document.getElementById("btn-food").addEventListener("click", () =>
+  addEvent({
+    type: "food",
+    icon: "🍕",
+    label: "Essen (50g KH, 5g Fett, 12g EW)",
+    carbsG: 50,
+    fatG: 5,
+    proteinG: 12,
+  })
+);
+document.getElementById("btn-dance").addEventListener("click", () =>
+  addEvent({ type: "dance", icon: "💃", label: "Tanzen (1h)", duration: 1 })
+);
+document.getElementById("btn-caffeine").addEventListener("click", () =>
+  addEvent({ type: "caffeine", icon: "☕", label: "Koffein (~90mg)", mg: 90 })
+);
 
 document.querySelectorAll("#sleep-duration-pills .sleep-pill").forEach((pill) => {
   pill.addEventListener("click", () => {
@@ -565,7 +649,6 @@ function updateSimulation() {
   document.getElementById("water-deficit-badge").textContent =
     `💧 −${Math.round(res.stats.maxFluidDeficitMl)} ml`;
 
-  // Sicherheits- & Plausibilitäts-Check (Grenze: 3.0 ‰ oder 600 mg Koffein)
   const isBacDanger = res.stats.maxBac >= 3.0;
   const isCaffDanger = res.stats.maxCaffeineMg >= 600;
   const chartWrap = document.getElementById("chart-wrap");
@@ -604,7 +687,7 @@ function updateSimulation() {
     ? ` Beim Aufwachen (${formatTotalHour(res.stats.wakeUp.time)}) noch ${res.stats.wakeUp.bac.toFixed(2)} ‰ Restalkohol.`
     : "";
 
-const d = res.stats.peakDrivers;
+  const d = res.stats.peakDrivers;
   const hasCaffeine = (res.stats.maxCaffeineMg || 0) >= 25;
   const needsWater = (res.stats.maxFluidDeficitMl || 0) >= 250 || d.fluid > 1.0;
   const needsSleep = d.sleep > 1.0;
@@ -667,7 +750,6 @@ function renderChart(res) {
     return;
   }
 
-  // 1. Oberes Diagramm: Blutalkohol (‰)
   bacChart = new Chart(bacCtx, {
     type: "line",
     data: {
@@ -711,7 +793,6 @@ function renderChart(res) {
     },
   });
 
-  // 2. Unteres Diagramm: Kater & Hydration (0–10)
   scoreChart = new Chart(scoreCtx, {
     type: "line",
     data: {
@@ -729,10 +810,11 @@ function renderChart(res) {
           label: "Hydration (0–10)",
           data: res.hydrationSeries,
           borderColor: "#2dd4bf",
+          backgroundColor: "rgba(45, 212, 191, 0.10)",
           tension: 0.35,
           pointRadius: 0,
-          borderWidth: 1.8,
-          borderDash: [2, 3],
+          borderWidth: 2.4,
+          fill: true,
         },
       ],
     },
@@ -762,6 +844,25 @@ function renderChart(res) {
 }
 
 // Start
+// --- Disclaimer-Bestätigung beim ersten Öffnen ---
+const DISCLAIMER_KEY = "drinkwithme_disclaimer_accepted_v1";
+
+function initDisclaimer() {
+  const modal = document.getElementById("disclaimer-modal");
+  const acceptBtn = document.getElementById("accept-disclaimer-btn");
+  if (!modal || !acceptBtn) return;
+
+  if (localStorage.getItem(DISCLAIMER_KEY) !== "true") {
+    modal.classList.remove("hidden");
+  }
+
+  acceptBtn.addEventListener("click", () => {
+    localStorage.setItem(DISCLAIMER_KEY, "true");
+    modal.classList.add("hidden");
+  });
+}
+
+initDisclaimer();
 renderProfileUI();
 syncLiveTime();
 updateDrinkButton();

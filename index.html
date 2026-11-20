@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="drinkwithme" />
   <title>drinkwithme – Wochenend-Simulator</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="icon" type="image/png" href="icon.png" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -49,11 +49,11 @@
         <div class="card chart-card">
           <div class="card-head">
             <h2>Verlaufskurve</h2>
-            <span class="hint-text">Legende tippbar</span>
+            <span class="hint-text">Kurve berühren</span>
           </div>
 
-        <div id="inspector-bar" class="inspector-bar hidden">
-          <span id="insp-time" class="insp-time">Fr 21:00</span>
+          <div id="inspector-bar" class="inspector-bar hidden">
+            <span id="insp-time" class="insp-time">Fr 21:00</span>
             <span id="insp-bac" class="insp-bac">0.00 ‰</span>
             <span id="insp-hangover" class="insp-hangover">Kater 0.0</span>
             <span id="insp-hydration" class="insp-hydration">Hydr. 10.0</span>
@@ -122,16 +122,16 @@
             <span id="drink-pace-badge" class="pace-badge">⏱ ~30 Min</span>
           </div>
           <div class="tile-grid" id="drink-presets">
-            <button class="tile active" data-name="Bier" data-icon="🍺" data-dl="5.0" data-abv="5.0" data-carb="true" data-dark="false" data-dur="0.5">
+            <button class="tile active" data-name="Bier" data-icon="🍺" data-dl="5.0" data-abv="5.0" data-carb="true" data-dur="0.5">
               <span class="tile-icon">🍺</span><span>Bier</span>
             </button>
-            <button class="tile" data-name="Wein" data-icon="🍷" data-dl="2.0" data-abv="12.5" data-carb="false" data-dark="true" data-dur="0.5">
+            <button class="tile" data-name="Wein" data-icon="🍷" data-dl="2.0" data-abv="12.5" data-carb="false" data-dur="0.5">
               <span class="tile-icon">🍷</span><span>Wein</span>
             </button>
-            <button class="tile" data-name="Longdrink" data-icon="🍸" data-dl="3.0" data-abv="10.0" data-carb="true" data-dark="false" data-dur="0.5">
+            <button class="tile" data-name="Longdrink" data-icon="🍸" data-dl="3.0" data-abv="10.0" data-carb="true" data-dur="0.5">
               <span class="tile-icon">🍸</span><span>Drink</span>
             </button>
-            <button class="tile" data-name="Shot" data-icon="🥃" data-dl="0.4" data-abv="40.0" data-carb="false" data-dark="true" data-dur="0">
+            <button class="tile" data-name="Shot" data-icon="🥃" data-dl="0.4" data-abv="40.0" data-carb="false" data-dur="0">
               <span class="tile-icon">🥃</span><span>Shot</span>
             </button>
           </div>
@@ -155,7 +155,7 @@
           <h2>Konter & Aktivität (1 Tipp)</h2>
           <div class="tile-grid-3">
             <button class="tile boost-tile" id="btn-water"><span class="tile-icon">💧</span><span>Wasser 3 dl</span></button>
-            <button class="tile boost-tile" id="btn-electro"><span class="tile-icon">⚡</span><span>Elektrolyte</span></button>
+            <button class="tile boost-tile" id="btn-electro"><span class="tile-icon">⚡</span><span>Elektrolyte 3 dl</span></button>
             <button class="tile boost-tile" id="btn-food"><span class="tile-icon">🍕</span><span>Essen</span></button>
             <button class="tile stim-tile" id="btn-dance"><span class="tile-icon">💃</span><span>Tanzen (1h)</span></button>
             <button class="tile stim-tile" id="btn-caffeine"><span class="tile-icon">☕</span><span>Koffein</span></button>
@@ -307,90 +307,33 @@
     </nav>
   </div>
 
-<script src="model.js"></script>
+  <!-- Disclaimer-Modal beim ersten Start -->
+<div id="disclaimer-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="disclaimer-title">
+  <div class="modal-card">
+    <h2 id="disclaimer-title">⚠️ Hinweis zur Simulation</h2>
+    <p>
+      <strong>drinkwithme</strong> ist ein vereinfachtes, interaktives Modell zu Lern- und Unterhaltungszwecken.
+    </p>
+    <ul class="disclaimer-list">
+      <li>Alle Werte (Promille, Hydration, Kater-Index, ~0.0 ‰) sind <strong>reine Annäherungen</strong>.</li>
+      <li>Tatsächliche Werte und dein persönliches Befinden können <strong>stark davon abweichen</strong>.</li>
+      <li>Die App ersetzt <strong>keine medizinische Beratung</strong> und dient <strong>niemals zur Beurteilung der Fahrtüchtigkeit</strong>.</li>
+    </ul>
+    <button id="accept-disclaimer-btn" class="primary-btn modal-btn">
+      Verstanden &amp; weiter
+    </button>
+  </div>
+
+  <script src="model.js"></script>
   <script src="app.js"></script>
   <script>
-    // Erzeugt echte 192x192 und 512x512 PNG-Icons für Android/iOS PWA-Installation
-    (function setupPwaManifest() {
-      function makePngIcon(size) {
-        const c = document.createElement("canvas");
-        c.width = size;
-        c.height = size;
-        const ctx = c.getContext("2d");
-
-        // Dunkler Hintergrund
-        ctx.fillStyle = "#0f172a";
-        ctx.fillRect(0, 0, size, size);
-
-        // Äusserer Ring
-        ctx.strokeStyle = "#334155";
-        ctx.lineWidth = size * 0.025;
-        ctx.beginPath();
-        ctx.arc(size / 2, size / 2, size * 0.36, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Verlaufskurve
-        const grad = ctx.createLinearGradient(size * 0.18, 0, size * 0.82, 0);
-        grad.addColorStop(0, "#38bdf8");
-        grad.addColorStop(1, "#fb7185");
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = size * 0.055;
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        ctx.moveTo(size * 0.19, size * 0.61);
-        ctx.bezierCurveTo(size * 0.29, size * 0.61, size * 0.34, size * 0.31, size * 0.46, size * 0.31);
-        ctx.bezierCurveTo(size * 0.58, size * 0.31, size * 0.62, size * 0.57, size * 0.71, size * 0.57);
-        ctx.lineTo(size * 0.83, size * 0.48);
-        ctx.stroke();
-
-        // Peak-Punkte
-        ctx.fillStyle = "#38bdf8";
-        ctx.beginPath();
-        ctx.arc(size * 0.46, size * 0.31, size * 0.036, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = "#fb7185";
-        ctx.beginPath();
-        ctx.arc(size * 0.71, size * 0.57, size * 0.032, 0, Math.PI * 2);
-        ctx.fill();
-
-        return c.toDataURL("image/png");
-      }
-
-      const icon192 = makePngIcon(192);
-      const icon512 = makePngIcon(512);
-
-      // Apple Touch Icon für iOS setzen
-      const appleLink = document.querySelector('link[rel="apple-touch-icon"]');
-      if (appleLink) appleLink.href = icon192;
-
-      // Dynamisches Manifest mit echten PNG-Grössen einbinden
-      const manifest = {
-        name: "drinkwithme – Wochenend-Simulator",
-        short_name: "drinkwithme",
-        description: "Pharmakokinetischer Blutalkohol- und Kater-Simulator.",
-        start_url: new URL("./index.html", location.href).href,
-        scope: new URL("./", location.href).href,
-        display: "standalone",
-        orientation: "portrait",
-        background_color: "#0f172a",
-        theme_color: "#0f172a",
-        icons: [
-          { src: icon192, sizes: "192x192", type: "image/png", purpose: "any" },
-          { src: icon512, sizes: "512x512", type: "image/png", purpose: "any maskable" }
-        ]
-      };
-
-      const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
-      const manifestLink = document.querySelector('link[rel="manifest"]');
-      if (manifestLink) manifestLink.href = URL.createObjectURL(blob);
-    })();
-
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("./sw.js").catch(() => {});
       });
     }
   </script>
+
+</div>
 </body>
 </html>
